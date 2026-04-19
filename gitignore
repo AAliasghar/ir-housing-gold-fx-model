@@ -1,0 +1,88 @@
+# -----------------------------
+
+# Python
+
+# -----------------------------
+
+**pycache**/
+_.py[cod]
+_.so
+
+# -----------------------------
+
+# Virtual Environment
+
+# -----------------------------
+
+venv/
+env/
+ENV/
+
+# -----------------------------
+
+# Jupyter Notebooks
+
+# -----------------------------
+
+.ipynb_checkpoints/
+
+# Optional: ignore notebooks entirely
+
+# \*.ipynb
+
+# -----------------------------
+
+# Data (VERY IMPORTANT)
+
+# -----------------------------
+
+data/
+
+# If you want to keep folder but not files:
+
+# data/\*
+
+# !data/.gitkeep
+
+# -----------------------------
+
+# Outputs / Results
+
+# -----------------------------
+
+output/
+outputs/
+_.csv
+_.xlsx
+\*.parquet
+
+# -----------------------------
+
+# Logs
+
+# -----------------------------
+
+logs/
+\*.log
+
+# -----------------------------
+
+# OS / Editor junk
+
+# -----------------------------
+
+.DS_Store
+Thumbs.db
+
+# VS Code
+
+.vscode/
+
+# -----------------------------
+
+# Environment files
+
+# -----------------------------
+
+.env
+.env.\*
