@@ -1,0 +1,1 @@
+# ir-housing-gold-fx-model
