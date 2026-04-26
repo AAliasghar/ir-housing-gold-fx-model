@@ -1,0 +1,6 @@
+apache-airflow
+pandas
+cloudscraper
+bonbast
+lxml
+psycopg2-binary
