@@ -1,13 +1,15 @@
-version: '3.8'
+version: "3.8"
 services:
   postgres:
     image: postgres:13
     environment:
-      - POSTGRES_USER=airflow
-      - POSTGRES_PASSWORD=airflow
-      - POSTGRES_DB=airflow
+      - POSTGRES_USER=quant_user
+      - POSTGRES_PASSWORD=quant_password
+      - POSTGRES_DB=ir_market_data
     ports:
-      - "5432:5432"
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   airflow-webserver:
     image: apache/airflow:2.7.1
@@ -15,8 +17,21 @@ services:
     depends_on:
       - postgres
     environment:
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
     ports:
-      - "8080:8080"
+      - "8081:8080"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
+
+  airflow-scheduler:
+    image: apache/airflow:2.7.1
+    command: scheduler
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+
+volumes:
+  postgres_data:
