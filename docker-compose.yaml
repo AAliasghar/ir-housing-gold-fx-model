@@ -18,6 +18,8 @@ services:
       - postgres
     environment:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
+      - AIRFLOW__WEBSERVER__SECRET_KEY=super-secret-key-123
+      - _PIP_ADDITIONAL_DEPENDENCIES=apache-airflow-providers-postgres pandas requests
     ports:
       - "8081:8080"
     volumes:
@@ -30,6 +32,8 @@ services:
       - postgres
     environment:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
+      - AIRFLOW__WEBSERVER__SECRET_KEY=super-secret-key-123
+      - _PIP_ADDITIONAL_DEPENDENCIES=apache-airflow-providers-postgres pandas requests
     volumes:
       - ./airflow/dags:/opt/airflow/dags
 
