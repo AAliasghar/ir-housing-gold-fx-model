@@ -4,3 +4,5 @@ cloudscraper
 bonbast
 lxml
 psycopg2-binary
+yfinance
+jdatetime
