@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import requests
 import jdatetime
+import yfinance as yf
 from sqlalchemy import create_engine
 
 
@@ -27,44 +28,85 @@ def sync_market_rates():
     except Exception as e:
         print(f"⚠️ Table might be empty or missing. Error check: {e}")
 
-    # 3. Fetch Data from Archive
-    url = "https://raw.githubusercontent.com/SamadiPour/rial-exchange-rates-archive/data/currency/usd.json"
-    print(f"🌐 Requesting historical archive from: {url}")
+    all_records = []
 
-    response = requests.get(url)
-    if response.status_code != 200:
-        print(f"❌ Connection Failed. HTTP Status: {response.status_code}")
-        return
-
-    raw_data = response.json()
-    records = []
-
-    # 4. Filter and Transform
-    print("⚙️ Processing archive data...")
-    for jalali_date, prices in raw_data.items():
-        y, m, d = map(int, jalali_date.split("/"))
-        g_date = jdatetime.date(y, m, d).togregorian()
-        g_timestamp = pd.Timestamp(g_date)
-
-        # Logic: If DB is empty, take EVERYTHING. If not, only take newer data.
-        if last_date is None or g_timestamp > pd.Timestamp(last_date):
-            records.append(
-                {
-                    "date": g_date,
-                    "rate": float(prices["sell"]) * 10,  # Ensure Rial (Toman * 10)
-                    "base_currency": "USD",
-                    "target_currency": "IRR",
-                }
+    # 3. LEGACY LOAD: 2006 - 2011 (Yahoo Finance)
+    # We only do this if the table is totally empty (initial load)
+    if last_date is None:
+        print("📜 Phase 1: Fetching Legacy Data from Yahoo Finance (2006-2011)...")
+        try:
+            ticker = "USDIRR=X"
+            legacy_data = yf.download(
+                ticker,
+                start="2006-01-01",
+                end="2010-12-31",
+                interval="1d",
+                progress=False,
             )
 
+            if not legacy_data.empty:
+                # yfinance often puts 'Date' in the index. reset_index makes it a column.
+                legacy_df = legacy_data.reset_index()
+
+                # We dynamically find the 'Close' and 'Date' columns regardless of capitalization
+                date_col = [c for c in legacy_df.columns if "date" in str(c).lower()][0]
+                close_col = [c for c in legacy_df.columns if "close" in str(c).lower()][0]
+
+                for _, row in legacy_df.iterrows():
+                    # Flatten the value in case yfinance returns a Series/MultiIndex
+                    rate_val = float(row[close_col])
+
+                    all_records.append(
+                        {
+                            "date": row[date_col],
+                            "rate": rate_val,
+                            "base_currency": "USD",
+                            "target_currency": "IRR",
+                        }
+                    )
+                print(f"✅ Loaded {len(legacy_df)} monthly legacy records.")
+        except Exception as e:
+            print(f"⚠️ Yahoo Finance pull failed: {e}. Moving to Phase 2.")
+
+    # 4. MARKET LOAD: 2012 - Present (Bonbast Archive)
+    print("🌐 Phase 2: Requesting Market Archive (2012-Present)...")
+    url = "https://raw.githubusercontent.com/SamadiPour/rial-exchange-rates-archive/data/currency/usd.json"
+
+    response = requests.get(url)
+    if response.status_code == 200:
+        raw_data = response.json()
+        print("⚙️ Filtering and transforming market data...")
+
+        for jalali_date, prices in raw_data.items():
+            y, m, d = map(int, jalali_date.split("/"))
+            g_date = jdatetime.date(y, m, d).togregorian()
+            g_timestamp = pd.Timestamp(g_date)
+
+            # Only append if date is newer than the DB or if it's a fresh start
+            if last_date is None or g_timestamp > pd.Timestamp(last_date):
+                all_records.append(
+                    {
+                        "date": g_date,
+                        "rate": float(prices["sell"]) * 10,  # Toman to Rial
+                        "base_currency": "USD",
+                        "target_currency": "IRR",
+                    }
+                )
+    else:
+        print(f"❌ Archive Connection Failed. Status: {response.status_code}")
+
     # 5. Load phase
-    if records:
-        df = pd.DataFrame(records)
-        print(f"📦 PREPARING LOAD: Found {len(df)} records to insert.")
+    if all_records:
+        df = pd.DataFrame(all_records)
+        df["date"] = pd.to_datetime(df["date"])
+
+        # Log status
         if last_date is None:
-            print("🏁 Status: INITIAL LOAD DETECTED (Loading full history 2012-Today)")
+            print(f"🏁 INITIAL LOAD: Totaling {len(df)} records (Legacy + Market).")
         else:
-            print(f"📈 Status: INCREMENTAL UPDATE (New records since {last_date})")
+            print(
+                f"📈 INCREMENTAL UPDATE: Found {len(df)} new records since {last_date}."
+            )
 
         df.to_sql(
             "fx_rates",
@@ -72,11 +114,11 @@ def sync_market_rates():
             schema="raw",
             if_exists="append",
             index=False,
-            method="multi",  # Essential for fast bulk loading
+            method="multi",
         )
-        print(f"✅ Success: {len(df)} rows written to raw.fx_rates.")
+        print(f"✅ Success: Data written to raw.fx_rates.")
     else:
-        print("😴 Nothing to do. Database is already in sync with the archive.")
+        print("😴 Nothing to do. Database is up to date.")
 
 
 with DAG(

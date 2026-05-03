@@ -110,7 +110,7 @@ def test_legacy_fx_Yahoo_pull():
             tickers=ticker_symbol,
             start="2006-01-01",
             end="2010-12-31",
-            interval="1mo",
+            interval="1d",
             progress=False,
         )
 
@@ -130,7 +130,7 @@ def test_legacy_fx_Yahoo_pull():
         df["target_currency"] = "IRR"
 
         # 3. Print Results
-        print(f"✅ Success! Found {len(df)} monthly records.")
+        print(f"✅ Success! Found {len(df)} daily records.")
         print("\n--- 📊 DATA PREVIEW (2006 Start) ---")
         print(df.head(5))
 
