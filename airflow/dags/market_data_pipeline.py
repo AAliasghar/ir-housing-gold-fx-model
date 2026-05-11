@@ -1,3 +1,17 @@
+"""
+Market Data Pipeline DAG
+
+This DAG orchestrates the extraction, transformation, and loading (ETL) of gold price data.
+Data Flow:
+1. Create the necessary database schema and table if they don't exist.
+2. Scrape gold price data from Yahoo Finance (using GLD ticker) starting from the last available date in the database.
+3. Clean and prepare the data (select Close price, flatten columns, add currency).
+4. Save the prepared data to a temporary CSV file.
+5. Load the data from the CSV into the PostgreSQL database table 'raw.gold_prices'.
+
+The DAG runs daily, with retries on failure.
+"""
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
@@ -7,6 +21,20 @@ import os
 
 
 def scrape_market_data():
+    """
+    Task: Scrape Gold Price Data from Yahoo Finance
+
+    Step-by-step execution:
+    1. Connect to the PostgreSQL database using Airflow connection.
+    2. Query the database to find the latest date in the gold_prices table.
+    3. Determine the start date for scraping: either the day after the latest date or 20 years ago if no data exists.
+    4. Use yfinance to download GLD (Gold ETF) data from the start date to present, at monthly intervals.
+    5. If no new data is found, create an empty CSV and exit.
+    6. Clean the data: select only the 'Close' price, reset index to get date, rename columns to 'date' and 'price', add 'currency' column as 'USD'.
+    7. Save the cleaned DataFrame to /tmp/gold_data.csv for the next task to consume.
+
+    Data Flow: Raw yfinance data -> Cleaned DataFrame -> CSV file
+    """
     import yfinance as yf
     from airflow.hooks.base import BaseHook
     from sqlalchemy import create_engine
@@ -53,6 +81,18 @@ def scrape_market_data():
 
 
 def load_data_to_postgres():
+    """
+    Task: Load Prepared Data into PostgreSQL Database
+
+    Step-by-step execution:
+    1. Check if the temporary CSV file exists and has content. If not, skip loading.
+    2. Establish connection to PostgreSQL using Airflow connection.
+    3. Read the cleaned data from /tmp/gold_data.csv into a pandas DataFrame.
+    4. Use SQLAlchemy engine to append the data to the 'raw.gold_prices' table.
+    5. Log the number of rows successfully loaded.
+
+    Data Flow: CSV file -> pandas DataFrame -> PostgreSQL table 'raw.gold_prices'
+    """
     from airflow.hooks.base import BaseHook
     from sqlalchemy import create_engine
 
@@ -85,6 +125,21 @@ with DAG(
         "retry_delay": timedelta(minutes=1),
     },
 ) as dag:
+    """
+    DAG Configuration:
+    - dag_id: Unique identifier for the DAG.
+    - start_date: The date from which the DAG can start running.
+    - schedule_interval: Runs daily.
+    - catchup: False means it won't run for past dates.
+    - default_args: Default settings for tasks, including 2 retries with 1-minute delay.
+
+    Task Dependencies (Data Flow):
+    1. create_table: Ensures the database schema and table exist before data extraction.
+    2. extract_data: Scrapes and prepares data, outputs to CSV.
+    3. load_data: Consumes the CSV and loads data into the database.
+
+    Execution Flow: create_table >> extract_data >> load_data
+    """
 
     create_table = PostgresOperator(
         task_id="create_gold_table",
@@ -108,4 +163,5 @@ with DAG(
         task_id="load_gold_to_postgres", python_callable=load_data_to_postgres
     )
 
+    # Define task dependencies: Ensure table exists before scraping, and scrape before loading
     create_table >> extract_data >> load_data
