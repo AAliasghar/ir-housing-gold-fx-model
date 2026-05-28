@@ -43,8 +43,9 @@ def scrape_market_data():
 
     # 1. Check the database for the latest date
     conn = BaseHook.get_connection("postgres_default")
-    db_url = f"postgresql+psycopg2://{conn.login}:{conn.password}@postgres:5432/{conn.schema}"
-    db_url = f"postgresql+psycopg2://{conn.login}:{conn.password}@{conn.host}:{conn.port}/{conn.schema}"
+    host = conn.host if conn.host else "postgres"
+    port = conn.port if conn.port else 5432
+    db_url = f"postgresql+psycopg2://{conn.login}:{conn.password}@{host}:{port}/{conn.schema}"
     engine = create_engine(db_url)
 
     try:
@@ -106,8 +107,9 @@ def load_data_to_postgres():
         return
 
     conn = BaseHook.get_connection("postgres_default")
-    connection_string = f"postgresql+psycopg2://{conn.login}:{conn.password}@postgres:5432/{conn.schema}"
-    connection_string = f"postgresql+psycopg2://{conn.login}:{conn.password}@{conn.host}:{conn.port}/{conn.schema}"
+    host = conn.host if conn.host else "postgres"
+    port = conn.port if conn.port else 5432
+    connection_string = f"postgresql+psycopg2://{conn.login}:{conn.password}@{host}:{port}/{conn.schema}"
 
     df = pd.read_csv("/tmp/gold_data.csv")
     engine = create_engine(connection_string)
