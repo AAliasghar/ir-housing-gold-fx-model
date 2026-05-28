@@ -1,8 +1,8 @@
-apache-airflow
 pandas
+psycopg2-binary
+sqlalchemy<2.0.0
 cloudscraper
 bonbast
 lxml
-psycopg2-binary
 yfinance
 jdatetime

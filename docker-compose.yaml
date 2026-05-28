@@ -34,6 +34,13 @@ services:
       - AIRFLOW__WEBSERVER__SECRET_KEY=super-secret-key-123
     volumes:
       - ./airflow/dags:/opt/airflow/dags
+  airflow-init:
+    build: .
+    command: airflow db init
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
 
 volumes:
   postgres_data:

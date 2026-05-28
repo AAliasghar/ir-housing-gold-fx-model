@@ -15,10 +15,13 @@ _.so
 # -----------------------------
 
 venv/
+.venv/
 env/
 ENV/
 
 **/venv/*
+**/.venv/*
+lib64/
 venv/
 bin/
 lib/
@@ -70,6 +73,15 @@ _.xlsx
 
 logs/
 \*.log
+airflow.db
+*.pid
+
+# -----------------------------
+# Docker / Database
+# -----------------------------
+postgres_data/
+db_data/
+pgdata/
 
 # -----------------------------
 
