@@ -59,10 +59,10 @@ def ingest_housing_seeds():
     # This uses the 'postgres_default' ID you have in Airflow
     conn = BaseHook.get_connection("postgres_default")
 
-    # Constructing the SQLAlchemy engine
-    # Note: Inside Docker, host is usually 'postgres' or 'localhost' depending on your networking
-    # db_url = f"postgresql://{conn.login}:{conn.password}@{conn.host}:{conn.port}/{conn.schema}"
-    db_url = f"postgresql+psycopg2://{conn.login}:{conn.password}@postgres:5432/{conn.schema}"
+    # Safely handle host and port defaults for Docker
+    host = conn.host if conn.host else "postgres"
+    port = conn.port if conn.port else 5432
+    db_url = f"postgresql+psycopg2://{conn.login}:{conn.password}@{host}:{port}/{conn.schema}"
     engine = create_engine(db_url)
 
     # 3. Load to Postgres

@@ -15,7 +15,9 @@ def sync_market_rates():
 
     # 1. Connection using Airflow's internal 'postgres_default'
     conn = BaseHook.get_connection("postgres_default")
-    db_url = f"postgresql+psycopg2://{conn.login}:{conn.password}@postgres:5432/{conn.schema}"
+    host = conn.host if conn.host else "postgres"
+    port = conn.port if conn.port else 5432
+    db_url = f"postgresql+psycopg2://{conn.login}:{conn.password}@{host}:{port}/{conn.schema}"
     engine = create_engine(db_url)
 
     # 2. Check for the last loaded date
@@ -50,7 +52,9 @@ def sync_market_rates():
 
                 # We dynamically find the 'Close' and 'Date' columns regardless of capitalization
                 date_col = [c for c in legacy_df.columns if "date" in str(c).lower()][0]
-                close_col = [c for c in legacy_df.columns if "close" in str(c).lower()][0]
+                close_col = [c for c in legacy_df.columns if "close" in str(c).lower()][
+                    0
+                ]
 
                 for _, row in legacy_df.iterrows():
                     # Flatten the value in case yfinance returns a Series/MultiIndex

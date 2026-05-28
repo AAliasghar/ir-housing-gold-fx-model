@@ -49,7 +49,9 @@ def ingest_inflation_data():
 
     # 1. Database Connection
     conn = BaseHook.get_connection("postgres_default")
-    db_url = f"postgresql+psycopg2://{conn.login}:{conn.password}@postgres:5432/{conn.schema}"
+    host = conn.host if conn.host else "postgres"
+    port = conn.port if conn.port else 5432
+    db_url = f"postgresql+psycopg2://{conn.login}:{conn.password}@{host}:{port}/{conn.schema}"
     engine = create_engine(db_url)
 
     # 2. Fetch from World Bank API

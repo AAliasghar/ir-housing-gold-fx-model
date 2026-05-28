@@ -19,10 +19,12 @@ services:
     environment:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
       - AIRFLOW__WEBSERVER__SECRET_KEY=super-secret-key-123
+      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://quant_user:quant_password@postgres:5432/ir_market_data
     ports:
       - "8081:8080"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
 
   airflow-scheduler:
     build: .
@@ -32,8 +34,10 @@ services:
     environment:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
       - AIRFLOW__WEBSERVER__SECRET_KEY=super-secret-key-123
+      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://quant_user:quant_password@postgres:5432/ir_market_data
     volumes:
       - ./airflow/dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
   airflow-init:
     build: .
     command: airflow db init
@@ -41,6 +45,5 @@ services:
       - postgres
     environment:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
-
 volumes:
   postgres_data:
