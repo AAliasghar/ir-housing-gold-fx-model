@@ -1,4 +1,5 @@
 # What CI needs to run the tests. The DAGs themselves run in Docker.
+jdatetime
 pandas
 pyyaml
 pytest>=8.0
