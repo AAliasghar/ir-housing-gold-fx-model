@@ -5,7 +5,7 @@
 
 Apache Airflow pipelines that collect **Iranian** macro and market data (USD/IRR exchange rate, inflation, GDP, Tehran housing prices) plus a gold price series into PostgreSQL, so they can be compared over time: for example, how Tehran housing prices move against the rial, gold and inflation.
 
-> **Status:** data-collection layer. The pipelines load raw tables; the comparison and analysis on top of them are on the [roadmap](#-roadmap), not built yet.
+> **Status:** data-collection layer plus a first result ([Tehran housing measured in gold](#results-tehran-housing-measured-in-gold)). The pipelines load raw tables; a full analysis layer on top of them is on the [roadmap](#roadmap).
 
 ---
 
@@ -24,6 +24,45 @@ Apache Airflow pipelines that collect **Iranian** macro and market data (USD/IRR
 - **USD/IRR has two regimes.** Up to 2010 the series is the official rate (Yahoo Finance); after that it is the open-market rate from the archive. In Iran these differ a lot, so treat the jump between them as a change of source, not a market move. There can be a gap between the end of 2010 and the archive's first date.
 - **Gold is a proxy.** GLD is a US gold ETF priced in USD, not the domestic Iranian gold or coin price.
 - **Housing is a small seed file:** approximate yearly averages for selected Iranian (Jalali) years, 1380 (2001/02) to 1405 (2026/27), compiled by the author.
+
+---
+
+## Results: Tehran housing measured in gold
+
+![Grams of gold needed to buy 1 m² of housing in Tehran, 1380 to 1405](docs/housing_vs_gold.png)
+
+From 1380 (2001) to 1405 (2026), the average price of 1 m² in Tehran rose about **468× in toman**, but only about **4× in US dollars**: most of the rise in toman is the rial losing value. Gold priced in toman rose even faster, about **1,780×**. So measured in gold, housing got cheaper: 1 m² cost about **44 g of gold in 1380** and about **12 g in 1405**. Someone holding gold could buy about 3.8× more housing at the end than at the start, before counting rent, which housing earns and gold does not.
+
+| Iranian year | Housing, toman/m² | USD rate, toman | Housing, USD/m² | Gold, USD/oz | Gold, toman/g | Grams of gold per m² |
+|---|--:|--:|--:|--:|--:|--:|
+| 1380 | 310,000 | 792 | 391 | 277 | 7,047 | 44.0 |
+| 1385 | 850,000 | 920 | 924 | 624 | 18,468 | 46.0 |
+| 1390 | 2,100,000 | 1,100 | 1,909 | 1,639 | 57,956 | 36.2 |
+| 1395 | 4,300,000 | 3,750 | 1,147 | 1,258 | 151,614 | 28.4 |
+| 1397 | 8,200,000 | 12,350 | 664 | 1,262 | 501,194 | 16.4 |
+| 1399 | 20,000,000 | 23,050 | 868 | 1,825 | 1,352,131 | 14.8 |
+| 1401 | 48,000,000 | 42,650 | 1,125 | 1,808 | 2,479,395 | 19.4 |
+| 1402 | 76,000,000 | 55,000 | 1,382 | 1,993 | 3,524,235 | 21.6 |
+| 1403 | 90,000,000 | 62,000 | 1,452 | 2,574 | 5,130,646 | 17.5 |
+| 1404 | 115,000,000 | 78,000 | 1,474 | 3,910 | 9,806,068 | 11.7 |
+| 1405 (so far) | 145,000,000 | 89,000 | 1,629 | 4,379 | 12,531,282 | 11.6 |
+
+**How it's calculated:** housing in USD = toman price ÷ the USD rate in the seed file. Gold is the world price (Yahoo Finance `GC=F`, USD per troy ounce), averaged over each Iranian year (1 Farvardin to the end of Esfand), then converted to toman per gram at the same USD rate. Grams per m² = housing in USD ÷ gold in USD per gram.
+
+**Read it with care:**
+
+- The housing figures are approximate yearly averages from the seed file, not an official series.
+- This is the world gold price, not the price of gold or a gold coin in Tehran, which usually carries a premium.
+- 1405 is not over: its gold average covers only the months up to the last run (2026-10-30).
+- The seed years are uneven (5 years apart at the start), so this can't show anything shorter than a year, such as whether housing follows gold with a lag of a few months.
+- The numbers come from [`analysis/housing_vs_gold.py`](analysis/housing_vs_gold.py), which reads the same sources directly; it does not read the Postgres tables yet.
+
+Reproduce (writes `docs/housing_vs_gold.csv` and `docs/housing_vs_gold.png`):
+
+```bash
+pip install jdatetime pandas yfinance matplotlib
+python analysis/housing_vs_gold.py
+```
 
 ---
 
@@ -87,7 +126,9 @@ ir-housing-gold-fx-model/
 │   ├── inflation_pipeline.py        # World Bank CPI → raw.inflation_rates
 │   ├── gdp_pipeline.py              # World Bank GDP → raw.gdp_data
 │   └── housing_prices_pipeline.py   # seed CSV → raw.housing_historical_raw
+├── analysis/housing_vs_gold.py      # housing priced in gold → docs/housing_vs_gold.{csv,png}
 ├── data/tehran_housing_seeds.csv    # housing seed data (the only committed data file)
+├── docs/                            # results chart and table shown in this README
 ├── tests/                           # pytest checks, run in CI
 ├── .github/workflows/ci.yml         # CI: compose check + tests
 ├── docker-compose.yaml              # Postgres + Airflow (init, webserver, scheduler)
@@ -107,13 +148,15 @@ pytest -v
 docker compose config -q
 ```
 
-The tests check what a fresh clone needs in order to run: the housing seed file is committed and readable, `.gitignore` keeps it while hiding `.env`, every file in `airflow/dags/` defines a DAG, `docker-compose.yaml` has no hardcoded credentials, and Airflow waits for the init step that creates the login. CI runs them on every push and pull request.
+The tests check what a fresh clone needs in order to run: the housing seed file is committed and readable, `.gitignore` keeps it while hiding `.env`, every file in `airflow/dags/` defines a DAG, `docker-compose.yaml` has no hardcoded credentials, and Airflow waits for the init step that creates the login. They also check the housing-vs-gold calculations (Iranian year boundaries, including leap years, and the unit conversions) without going online. CI runs them on every push and pull request.
 
 ---
 
 ## Roadmap
 
-- [ ] Analysis layer: join the series per year (Tehran price per m² in USD and in gold, real price after inflation) and publish the results with a chart in this README
+- [x] Tehran price per m² in USD and in gold, with a chart in this README
+- [ ] Monthly Tehran housing prices, to test whether housing follows gold with a lag: how often, after how many months, and how much of the gold rise it catches up
+- [ ] Analysis layer on the Postgres tables (dbt), including the real price after inflation
 - [ ] Close the gap between the official (to 2010) and open-market USD/IRR series and document where they meet
 - [ ] A US version of the same pipeline with FRED data (fed funds rate, Case-Shiller, gold, dollar index)
 - [ ] Separate database for Airflow's metadata, and upgrade Postgres 13 (end of life)
