@@ -1,49 +1,64 @@
-version: "3.8"
+# Settings come from .env (copy .env.example). The defaults below match it,
+# so `docker compose up` also works without a .env file for local testing.
+
+x-airflow-common: &airflow-common
+  build: .
+  environment:
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-quant_user}:${POSTGRES_PASSWORD:-quant_password}@postgres:5432/${POSTGRES_DB:-ir_market_data}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-change-me}
+    AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+    # Connection the DAGs use (conn_id "postgres_default")
+    AIRFLOW_CONN_POSTGRES_DEFAULT: postgresql://${POSTGRES_USER:-quant_user}:${POSTGRES_PASSWORD:-quant_password}@postgres:5432/${POSTGRES_DB:-ir_market_data}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./data:/opt/airflow/data
+
 services:
   postgres:
     image: postgres:13
     environment:
-      - POSTGRES_USER=quant_user
-      - POSTGRES_PASSWORD=quant_password
-      - POSTGRES_DB=ir_market_data
+      POSTGRES_USER: ${POSTGRES_USER:-quant_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-quant_password}
+      POSTGRES_DB: ${POSTGRES_DB:-ir_market_data}
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-quant_user} -d ${POSTGRES_DB:-ir_market_data}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Runs once: prepares the Airflow tables and creates the UI login, then exits.
+  airflow-init:
+    <<: *airflow-common
+    command: >
+      bash -c "airflow db migrate &&
+      (airflow users create --role Admin
+      --username ${AIRFLOW_ADMIN_USER:-admin} --password ${AIRFLOW_ADMIN_PASSWORD:-admin}
+      --firstname Admin --lastname User --email admin@example.com || true)"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   airflow-webserver:
-    build: .
+    <<: *airflow-common
     command: webserver
-    depends_on:
-      - postgres
-    environment:
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
-      - AIRFLOW__WEBSERVER__SECRET_KEY=super-secret-key-123
-      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://quant_user:quant_password@postgres:5432/ir_market_data
     ports:
       - "8081:8080"
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./data:/opt/airflow/data
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
 
   airflow-scheduler:
-    build: .
+    <<: *airflow-common
     command: scheduler
+    restart: unless-stopped
     depends_on:
-      - postgres
-    environment:
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
-      - AIRFLOW__WEBSERVER__SECRET_KEY=super-secret-key-123
-      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://quant_user:quant_password@postgres:5432/ir_market_data
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./data:/opt/airflow/data
-  airflow-init:
-    build: .
-    command: airflow db init
-    depends_on:
-      - postgres
-    environment:
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
+      airflow-init:
+        condition: service_completed_successfully
+
 volumes:
   postgres_data:

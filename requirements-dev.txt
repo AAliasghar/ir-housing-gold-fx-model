@@ -1,0 +1,4 @@
+# What CI needs to run the tests. The DAGs themselves run in Docker.
+pandas
+pyyaml
+pytest>=8.0
