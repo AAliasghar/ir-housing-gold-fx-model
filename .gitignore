@@ -1,106 +1,45 @@
-# -----------------------------
-
 # Python
-
-# -----------------------------
-
 __pycache__/
-_.py[cod]
-_.so
+*.py[cod]
+*.so
+.pytest_cache/
 
-# -----------------------------
-
-# Virtual Environment
-
-# -----------------------------
-
+# Virtual environments
 venv/
 .venv/
 env/
 ENV/
 
-**/venv/*
-**/.venv/*
-lib64/
-venv/
-bin/
-lib/
-include/
-
-# -----------------------------
-
-# Jupyter Notebooks
-
-# -----------------------------
-
+# Jupyter
 .ipynb_checkpoints/
 
-# Optional: ignore notebooks entirely
+# Data: ignored, except the small seed file the housing DAG needs
+data/*
+!data/tehran_housing_seeds.csv
 
-# \*.ipynb
-
-# -----------------------------
-
-# Data (VERY IMPORTANT)
-
-# -----------------------------
-
-data/
-
-# If you want to keep folder but not files:
-
-# data/\*
-
-# !data/.gitkeep
-
-# -----------------------------
-
-# Outputs / Results
-
-# -----------------------------
-
+# Outputs
 output/
 outputs/
-_.csv
-_.xlsx
-\*.parquet
+*.parquet
 
-# -----------------------------
-
-# Logs
-
-# -----------------------------
-
+# Logs / Airflow runtime files
 logs/
-\*.log
+*.log
 airflow.db
 *.pid
 
-# -----------------------------
-# Docker / Database
-# -----------------------------
+# Database data folders
 postgres_data/
 db_data/
 pgdata/
 
-# -----------------------------
+# Secrets: never commit real credentials (.env.example is the template)
+.env
+.env.*
+!.env.example
 
-# OS / Editor junk
-
-# -----------------------------
-
+# OS / editor
 .DS_Store
 Thumbs.db
-
-# VS Code
-
 .vscode/
-
-# -----------------------------
-
-# Environment files
-
-# -----------------------------
-
-.env
-.env.\*
+.idea/

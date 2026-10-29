@@ -1,209 +1,129 @@
-# Interest Rates, Housing, Gold & FX Model
+# Iran Housing, Gold & FX Data Pipeline
 
-A Python-based quantitative finance project that analyzes and models relationships between interest rates, housing markets, gold prices, and foreign exchange (FX) markets using Apache Airflow for workflow orchestration.
+[![CI](https://github.com/AAliasghar/ir-housing-gold-fx-model/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AAliasghar/ir-housing-gold-fx-model/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## Overview
+Apache Airflow pipelines that collect **Iranian** macro and market data (USD/IRR exchange rate, inflation, GDP, Tehran housing prices) plus a gold price series into PostgreSQL, so they can be compared over time: for example, how Tehran housing prices move against the rial, gold and inflation.
 
-This repository implements an automated data pipeline for collecting, processing, and analyzing correlations between four key financial market indicators:
-
-- **Interest Rates (IR)**: Central bank rates and yield curves
-- **Housing**: Real estate market prices and indicators
-- **Gold**: Precious metals commodity prices
-- **Foreign Exchange (FX)**: Currency exchange rates
-
-## Project Structure
-
-```
-ir-housing-gold-fx-model/
-├── airflow/                 # Apache Airflow DAGs and configurations
-│   └── dags/               # Workflow definitions
-├── src/                     # Source code for models and analysis
-├── config/                  # Configuration files
-├── docker-compose.yaml      # Docker Compose setup for local development
-├── Dockerfile              # Docker image definition
-├── requirements.txt        # Python dependencies
-└── README.md              # This file
-```
-
-## Features
-
-- **Automated Data Collection**: Uses Airflow to schedule and orchestrate data extraction from multiple sources
-- **Multi-Source Integration**: 
-  - Financial data via `yfinance`
-  - Iranian market data via `bonbast` (foreign exchange rates)
-  - Real estate/market data via `cloudscraper`
-  - Persian calendar support via `jdatetime`
-- **Data Persistence**: PostgreSQL database for reliable data storage
-- **Containerized Deployment**: Docker and Docker Compose for easy setup and scalability
-
-## Technology Stack
-
-### Data Processing & Analysis
-- **pandas**: Data manipulation and analysis
-- **SQLAlchemy**: SQL toolkit and ORM
-- **psycopg2**: PostgreSQL adapter
-
-### Data Sources & Web Scraping
-- **yfinance**: Yahoo Finance data (gold, FX rates)
-- **bonbast**: Iranian foreign exchange and market data
-- **cloudscraper**: Web scraping with cloud protection bypass
-- **lxml**: XML and HTML parsing
-
-### Orchestration & Infrastructure
-- **Apache Airflow**: Workflow scheduling and monitoring
-- **PostgreSQL**: Data warehouse backend
-- **Docker & Docker Compose**: Containerization
-
-### Utilities
-- **jdatetime**: Persian/Jalali calendar support
-
-## Quick Start
-
-### Prerequisites
-- Docker and Docker Compose
-- Python 3.10+
-- PostgreSQL 13+
-
-### Installation & Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/AAliasghar/ir-housing-gold-fx-model.git
-   cd ir-housing-gold-fx-model
-   ```
-
-2. **Start the services with Docker Compose**
-   ```bash
-   docker-compose up -d
-   ```
-
-   This will start:
-   - **PostgreSQL**: Data warehouse (accessible on port 5433)
-   - **Airflow Webserver**: UI for monitoring DAGs (accessible on http://localhost:8081)
-   - **Airflow Scheduler**: Background job scheduler
-
-3. **Access Airflow Dashboard**
-   - Navigate to: `http://localhost:8081`
-   - Default credentials: Check Airflow documentation for setup
-
-4. **Verify Database Connection**
-   ```bash
-   PGPASSWORD=quant_password psql -h localhost -U quant_user -d ir_market_data -p 5433
-   ```
-
-### Local Development (Without Docker)
-
-1. **Create a virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Initialize Airflow database**
-   ```bash
-   export AIRFLOW_HOME=$(pwd)/airflow
-   airflow db init
-   ```
-
-## Configuration
-
-Key configurations are stored in the `config/` directory. Database connection details for Docker Compose:
-
-- **Host**: `postgres` (within Docker network) or `localhost` (from host)
-- **Port**: `5433`
-- **Username**: `quant_user`
-- **Password**: `quant_password`
-- **Database**: `ir_market_data`
-
-Update these credentials in your environment or configuration files as needed for production use.
-
-## Airflow DAGs
-
-Workflow definitions are located in `airflow/dags/`. Each DAG represents a data pipeline:
-- Data ingestion from external sources
-- Data transformation and cleaning
-- Storage in PostgreSQL
-- Analysis and correlation computation
-
-## Dependencies
-
-See `requirements.txt` for the complete list of dependencies:
-- pandas
-- psycopg2-binary
-- sqlalchemy<2.0.0
-- cloudscraper
-- bonbast
-- lxml
-- yfinance
-- jdatetime
-
-## Environment Variables
-
-Key environment variables used by Docker Compose:
-
-```
-AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://quant_user:quant_password@postgres/ir_market_data
-AIRFLOW__WEBSERVER__SECRET_KEY=super-secret-key-123
-AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://quant_user:quant_password@postgres:5432/ir_market_data
-```
-
-**⚠️ Important**: Change the `AIRFLOW__WEBSERVER__SECRET_KEY` and database passwords for production deployments.
-
-## Common Commands
-
-### Docker Compose
-```bash
-# Start services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f airflow-webserver
-
-# Stop services
-docker-compose down
-
-# Clean up volumes (⚠️ deletes data)
-docker-compose down -v
-```
-
-### Airflow CLI (Inside Docker)
-```bash
-# List DAGs
-docker-compose exec airflow-webserver airflow dags list
-
-# Trigger a DAG
-docker-compose exec airflow-webserver airflow dags trigger <dag_id>
-
-# View DAG status
-docker-compose exec airflow-webserver airflow dags status <dag_id>
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes (`git commit -m 'Add your feature'`)
-4. Push to the branch (`git push origin feature/your-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is currently unlicensed. See LICENSE file for details.
-
-## Author
-
-[AAliasghar](https://github.com/AAliasghar)
-
-## Support
-
-For issues, questions, or suggestions, please open an [Issue](https://github.com/AAliasghar/ir-housing-gold-fx-model/issues) on GitHub.
+> **Status:** data-collection layer. The pipelines load raw tables; the comparison and analysis on top of them are on the [roadmap](#-roadmap), not built yet.
 
 ---
 
-**Last Updated**: June 2026  
-**Status**: Active Development
+## 📥 Data sources
+
+| DAG | Data | Source | Table | Schedule |
+|---|---|---|---|---|
+| `fx_currency_scraper` | USD/IRR rate | Yahoo Finance `USDIRR=X` for 2006–2010; [rial-exchange-rates-archive](https://github.com/SamadiPour/rial-exchange-rates-archive) (open-market sell rate, toman → rial) for the years it covers, about 2012 onward | `raw.fx_rates` | daily, incremental |
+| `market_data_scraper` | Gold: GLD ETF monthly close, USD | Yahoo Finance | `raw.gold_prices` | daily, incremental (first run loads 20 years) |
+| `inflation_ingestion` | Consumer-price inflation, annual % (`FP.CPI.TOTL.ZG`) | World Bank API, country `IRN` | `raw.inflation_rates` | monthly, full refresh |
+| `gdp_ingestion` | GDP growth % and GDP in current USD | World Bank API, country `IRN` | `raw.gdp_data` | monthly, full refresh |
+| `housing_ingestion_pipeline` | Average Tehran housing price (toman per m²) and USD rate for selected years | [`data/tehran_housing_seeds.csv`](data/tehran_housing_seeds.csv) | `raw.housing_historical_raw` | once |
+
+### Data caveats
+
+- **USD/IRR has two regimes.** Up to 2010 the series is the official rate (Yahoo Finance); after that it is the open-market rate from the archive. In Iran these differ a lot, so treat the jump between them as a change of source, not a market move. There can be a gap between the end of 2010 and the archive's first date.
+- **Gold is a proxy.** GLD is a US gold ETF priced in USD, not the domestic Iranian gold or coin price.
+- **Housing is a small seed file:** approximate yearly averages for selected Iranian (Jalali) years, 1380 (2001/02) to 1405 (2026/27), compiled by the author.
+
+---
+
+## 🚀 Getting started
+
+**Requirements:** Docker with Docker Compose.
+
+```bash
+git clone https://github.com/AAliasghar/ir-housing-gold-fx-model.git
+cd ir-housing-gold-fx-model
+
+cp .env.example .env          # then change the passwords in .env
+docker compose up --build -d
+```
+
+On the first start, `airflow-init` prepares the Airflow tables and creates the UI login, then the webserver and scheduler start.
+
+- **Airflow UI:** http://localhost:8081, log in with `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` from `.env` (default `admin` / `admin`)
+- **PostgreSQL:** `localhost:5433`, database `ir_market_data`, user and password from `.env`
+
+New DAGs start **paused**. In the Airflow UI, switch on the DAGs you want and trigger them.
+
+Check that data arrived:
+
+```bash
+docker compose exec postgres psql -U quant_user -d ir_market_data \
+  -c "SELECT COUNT(*), MIN(date), MAX(date) FROM raw.fx_rates;"
+```
+
+### Common commands
+
+```bash
+docker compose logs -f airflow-scheduler                         # follow task logs
+docker compose exec airflow-webserver airflow dags list          # list DAGs
+docker compose exec airflow-webserver airflow dags trigger gdp_ingestion
+docker compose down                                              # stop
+docker compose down -v                                           # stop and DELETE the database volume
+```
+
+### Configuration
+
+All settings live in `.env` (template: [`.env.example`](.env.example)):
+
+| Variable | Used for |
+|---|---|
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | The Postgres container, Airflow's metadata DB and the `postgres_default` connection the DAGs use |
+| `AIRFLOW_ADMIN_USER`, `AIRFLOW_ADMIN_PASSWORD` | Airflow UI login, created by `airflow-init` |
+| `AIRFLOW_SECRET_KEY` | Airflow webserver secret key |
+
+If a database volume already exists, keep the password it was created with, or reset the volume with `docker compose down -v` (this deletes the data).
+
+---
+
+## 📂 Project structure
+
+```
+ir-housing-gold-fx-model/
+├── airflow/dags/
+│   ├── fx_data_pipeline.py          # USD/IRR → raw.fx_rates
+│   ├── market_data_pipeline.py      # gold (GLD) → raw.gold_prices
+│   ├── inflation_pipeline.py        # World Bank CPI → raw.inflation_rates
+│   ├── gdp_pipeline.py              # World Bank GDP → raw.gdp_data
+│   └── housing_prices_pipeline.py   # seed CSV → raw.housing_historical_raw
+├── data/tehran_housing_seeds.csv    # housing seed data (the only committed data file)
+├── tests/                           # pytest checks, run in CI
+├── .github/workflows/ci.yml         # CI: compose check + tests
+├── docker-compose.yaml              # Postgres + Airflow (init, webserver, scheduler)
+├── Dockerfile                       # Airflow 2.7.1 (Python 3.10) + requirements.txt
+├── requirements.txt                 # libraries installed into the Airflow image
+├── .env.example
+└── LICENSE
+```
+
+---
+
+## 🧪 Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest -v
+docker compose config -q
+```
+
+The tests check what a fresh clone needs in order to run: the housing seed file is committed and readable, `.gitignore` keeps it while hiding `.env`, every file in `airflow/dags/` defines a DAG, `docker-compose.yaml` has no hardcoded credentials, and Airflow waits for the init step that creates the login. CI runs them on every push and pull request.
+
+---
+
+## 🎯 Roadmap
+
+- [ ] Analysis layer: join the series per year (Tehran price per m² in USD and in gold, real price after inflation) and publish the results with a chart in this README
+- [ ] Close the gap between the official (to 2010) and open-market USD/IRR series and document where they meet
+- [ ] A US version of the same pipeline with FRED data (fed funds rate, Case-Shiller, gold, dollar index)
+- [ ] Separate database for Airflow's metadata, and upgrade Postgres 13 (end of life)
+
+---
+
+## 📝 License
+
+MIT. See [LICENSE](LICENSE).
+
+## 👤 Author
+
+[AAliasghar](https://github.com/AAliasghar) · [Open an issue](https://github.com/AAliasghar/ir-housing-gold-fx-model/issues)
