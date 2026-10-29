@@ -9,7 +9,7 @@ Apache Airflow pipelines that collect **Iranian** macro and market data (USD/IRR
 
 ---
 
-## 📥 Data sources
+## Data sources
 
 | DAG | Data | Source | Table | Schedule |
 |---|---|---|---|---|
@@ -27,7 +27,7 @@ Apache Airflow pipelines that collect **Iranian** macro and market data (USD/IRR
 
 ---
 
-## 🚀 Getting started
+## Getting started
 
 **Requirements:** Docker with Docker Compose.
 
@@ -77,7 +77,7 @@ If a database volume already exists, keep the password it was created with, or r
 
 ---
 
-## 📂 Project structure
+## Project structure
 
 ```
 ir-housing-gold-fx-model/
@@ -99,7 +99,7 @@ ir-housing-gold-fx-model/
 
 ---
 
-## 🧪 Tests
+## Tests
 
 ```bash
 pip install -r requirements-dev.txt
@@ -111,7 +111,7 @@ The tests check what a fresh clone needs in order to run: the housing seed file 
 
 ---
 
-## 🎯 Roadmap
+## Roadmap
 
 - [ ] Analysis layer: join the series per year (Tehran price per m² in USD and in gold, real price after inflation) and publish the results with a chart in this README
 - [ ] Close the gap between the official (to 2010) and open-market USD/IRR series and document where they meet
@@ -120,10 +120,10 @@ The tests check what a fresh clone needs in order to run: the housing seed file 
 
 ---
 
-## 📝 License
+## License
 
 MIT. See [LICENSE](LICENSE).
 
-## 👤 Author
+## Author
 
 [AAliasghar](https://github.com/AAliasghar) · [Open an issue](https://github.com/AAliasghar/ir-housing-gold-fx-model/issues)
