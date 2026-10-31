@@ -16,6 +16,7 @@ ENV/
 # Data: ignored, except the small seed file the housing DAG needs
 data/*
 !data/tehran_housing_seeds.csv
+!data/gold_toman_yearly.csv
 
 # Outputs
 output/
