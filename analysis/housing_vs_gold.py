@@ -1,14 +1,15 @@
 """
 Tehran housing priced in grams of gold, per Iranian (Jalali) year.
 
-Reads the housing seed file, downloads the world gold price (Yahoo Finance `GC=F`,
-USD per troy ounce), averages it over each Iranian year (Nowruz to Nowruz) and works out
-how many grams of gold one square metre of Tehran housing cost.
+Reads the housing seed file and works out how many grams of gold one square metre of
+Tehran housing cost, using the yearly average (Nowruz to Nowruz) of gold in toman:
+- the Emami gold coin price in Tehran (rial-exchange-rates-archive, from 1391), or
+- before that, the world gold price (Yahoo Finance `GC=F`, USD per ounce) at the seed's USD rate.
 
 Run from the repo root:
     python analysis/housing_vs_gold.py
 
-Writes docs/housing_vs_gold.csv and docs/housing_vs_gold.png.
+Writes data/gold_toman_yearly.csv, docs/housing_vs_gold.csv and docs/housing_vs_gold.png.
 """
 
 from datetime import date, timedelta
@@ -19,10 +20,13 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 SEED_FILE = ROOT / "data" / "tehran_housing_seeds.csv"
+GOLD_FILE = ROOT / "data" / "gold_toman_yearly.csv"
 OUTPUT_DIR = ROOT / "docs"
 
 GRAMS_PER_TROY_OUNCE = 31.1034768
 GOLD_TICKER = "GC=F"  # gold futures in USD per ounce; GLD only starts in Nov 2004
+EMAMI_COIN_GOLD_GRAMS = 7.3224  # 8.136 g coin, 900 fine
+ARCHIVE_URL = "https://raw.githubusercontent.com/SamadiPour/rial-exchange-rates-archive/data/currency/{}.json"
 
 
 def jalali_year_window(jalali_year: int) -> tuple[date, date]:
@@ -42,14 +46,32 @@ def average_by_jalali_year(prices: pd.Series, years) -> pd.Series:
     return pd.Series(averages, dtype=float)
 
 
-def build_table(housing: pd.DataFrame, gold_usd_per_oz: pd.Series, today: date) -> pd.DataFrame:
-    """Add USD, gold and grams-of-gold columns to the housing seed rows."""
+def parse_archive(raw: dict) -> pd.Series:
+    """Daily 'sell' prices from a rial-exchange-rates-archive file, keyed 'YYYY/MM/DD' (Jalali)."""
+    prices = {}
+    for jalali_day, quote in raw.items():
+        y, m, d = map(int, jalali_day.split("/"))
+        prices[pd.Timestamp(jdatetime.date(y, m, d).togregorian())] = quote["sell"]
+    return pd.Series(prices).sort_index()
+
+
+def build_table(
+    housing: pd.DataFrame, gold_usd_per_oz: pd.Series, coin_toman: pd.Series, today: date
+) -> pd.DataFrame:
+    """Add USD, gold and grams-of-gold columns to the housing seed rows.
+
+    Gold in toman comes from the Emami coin price in Tehran where there is one,
+    otherwise from the world gold price at the seed's USD rate.
+    """
     table = housing.copy()
     table["usd_per_sqm"] = table["avg_price_toman_sqm"] / table["usd_rate_at_time"]
     table["gold_usd_per_oz"] = table["jalali_year"].map(gold_usd_per_oz)
-    gold_usd_per_gram = table["gold_usd_per_oz"] / GRAMS_PER_TROY_OUNCE
-    table["gold_toman_per_gram"] = gold_usd_per_gram * table["usd_rate_at_time"]
-    table["grams_gold_per_sqm"] = table["usd_per_sqm"] / gold_usd_per_gram
+    world_toman_per_gram = table["gold_usd_per_oz"] / GRAMS_PER_TROY_OUNCE * table["usd_rate_at_time"]
+    coin_toman_per_gram = table["jalali_year"].map(coin_toman) / EMAMI_COIN_GOLD_GRAMS
+    has_coin = coin_toman_per_gram.notna()
+    table["gold_toman_per_gram"] = coin_toman_per_gram.where(has_coin, world_toman_per_gram)
+    table["gold_source"] = has_coin.map({True: "Emami coin, Tehran", False: "world gold x USD rate"})
+    table["grams_gold_per_sqm"] = table["avg_price_toman_sqm"] / table["gold_toman_per_gram"]
     # The current year is not over: its gold average only covers the days so far
     table["partial_year"] = [jalali_year_window(year)[1] >= today for year in table["jalali_year"]]
     return table
@@ -64,6 +86,15 @@ def download_gold_usd_per_oz(start: date) -> pd.Series:
         raise RuntimeError(f"Yahoo Finance returned no data for {GOLD_TICKER}")
     # yfinance returns one column per ticker under "Close"
     return data["Close"].squeeze("columns").dropna()
+
+
+def download_archive(name: str) -> pd.Series:
+    """Daily prices in toman from rial-exchange-rates-archive (e.g. 'usd', 'emami1')."""
+    import requests
+
+    response = requests.get(ARCHIVE_URL.format(name), timeout=60)
+    response.raise_for_status()
+    return parse_archive(response.json())
 
 
 def plot(table: pd.DataFrame, path: Path) -> None:
@@ -93,15 +124,15 @@ def plot(table: pd.DataFrame, path: Path) -> None:
         [d for d, f in zip(x, full) if not f], y[~full], s=64, color=surface, edgecolors=line, linewidths=2, zorder=3
     )
 
-    # Label only the first point (above) and the last point (below, clear of the line)
+    # Label only the first point (above) and the last point (to its right, clear of the line)
     first, last = table.index[0], table.index[-1]
-    for i, align, offset, valign in ((first, "left", 12, "bottom"), (last, "right", -14, "top")):
+    for i, align, offset, valign in ((first, "left", (0, 12), "bottom"), (last, "left", (10, 0), "center")):
         year = table.loc[i, "jalali_year"]
-        note = " (so far)" if table.loc[i, "partial_year"] else ""
+        note = "\n(so far)" if table.loc[i, "partial_year"] else ""
         ax.annotate(
             f"{y[i]:.0f} g in {year}{note}",
             (x[table.index.get_loc(i)], y[i]),
-            xytext=(0, offset),
+            xytext=offset,
             textcoords="offset points",
             ha=align,
             va=valign,
@@ -111,10 +142,11 @@ def plot(table: pd.DataFrame, path: Path) -> None:
 
     ticks = x
     ax.set_xticks(ticks)
-    ax.set_xticklabels([f"{j}\n{d.year}" for j, d in zip(table["jalali_year"], x)], fontsize=8, color=muted)
+    ax.set_xticklabels([f"{j}\n{d.year}" for j, d in zip(table["jalali_year"], x)], fontsize=7, color=muted)
     ax.tick_params(axis="y", labelsize=9, colors=muted)
     ax.tick_params(length=0)
     ax.set_ylim(0, y.max() * 1.2)
+    ax.set_xlim(right=x[-1] + pd.DateOffset(years=2))  # room for the last label
     ax.grid(axis="y", color=grid, linewidth=1)
     ax.set_axisbelow(True)
     for side in ("top", "right", "left"):
@@ -133,12 +165,13 @@ def plot(table: pd.DataFrame, path: Path) -> None:
     fig.text(
         0.0125,
         0.01,
-        "Housing: data/tehran_housing_seeds.csv (approximate yearly averages, toman → USD at the seed's rate). "
-        "Gold: Yahoo Finance GC=F, average over each Iranian year.",
+        "Housing: data/tehran_housing_seeds.csv (approximate yearly averages).\n"
+        "Gold: Emami coin price in Tehran from 1391 (rial-exchange-rates-archive), world gold (GC=F) x USD rate before; "
+        "average over each Iranian year.",
         fontsize=7,
         color=muted,
     )
-    fig.tight_layout(rect=(0, 0.04, 1, 0.89))
+    fig.tight_layout(rect=(0, 0.07, 1, 0.89))
     fig.savefig(path, facecolor=surface)
     plt.close(fig)
 
@@ -146,9 +179,14 @@ def plot(table: pd.DataFrame, path: Path) -> None:
 def main() -> None:
     housing = pd.read_csv(SEED_FILE)
     first_day = jalali_year_window(int(housing["jalali_year"].min()))[0]
-    gold = average_by_jalali_year(download_gold_usd_per_oz(first_day), housing["jalali_year"])
-    table = build_table(housing, gold, today=date.today())
+    years = housing["jalali_year"]
+    gold = average_by_jalali_year(download_gold_usd_per_oz(first_day), years)
+    coin = average_by_jalali_year(download_archive("emami1"), years)
+    table = build_table(housing, gold, coin, today=date.today())
 
+    gold_columns = ["jalali_year", "gold_toman_per_gram", "gold_source", "partial_year"]
+    gold_yearly = table[gold_columns].round({"gold_toman_per_gram": 0}).astype({"gold_toman_per_gram": "int64"})
+    gold_yearly.to_csv(GOLD_FILE, index=False)
     OUTPUT_DIR.mkdir(exist_ok=True)
     table.round(2).to_csv(OUTPUT_DIR / "housing_vs_gold.csv", index=False)
     plot(table, OUTPUT_DIR / "housing_vs_gold.png")
