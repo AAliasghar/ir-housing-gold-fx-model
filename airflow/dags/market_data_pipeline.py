@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import os
 
+from common.gold import fetch_start, to_month_rows
+
 
 def scrape_market_data():
     """
@@ -27,10 +29,10 @@ def scrape_market_data():
     Step-by-step execution:
     1. Connect to the PostgreSQL database using Airflow connection.
     2. Query the database to find the latest date in the gold_prices table.
-    3. Determine the start date for scraping: either the day after the latest date or 20 years ago if no data exists.
+    3. Determine the start date: the first day of the latest stored month (it may have been unfinished) or 20 years ago if no data exists.
     4. Use yfinance to download GLD (Gold ETF) data from the start date to present, at monthly intervals.
     5. If no new data is found, create an empty CSV and exit.
-    6. Clean the data: select only the 'Close' price, reset index to get date, rename columns to 'date' and 'price', add 'currency' column as 'USD'.
+    6. Clean the data: select only the 'Close' price, one row per month dated the 1st, add 'currency' column as 'USD'.
     7. Save the cleaned DataFrame to /tmp/gold_data.csv for the next task to consume.
 
     Data Flow: Raw yfinance data -> Cleaned DataFrame -> CSV file
@@ -48,17 +50,12 @@ def scrape_market_data():
     db_url = f"postgresql+psycopg2://{conn.login}:{conn.password}@{host}:{port}/{conn.schema}"
     engine = create_engine(db_url)
 
-    try:
-        last_date_query = "SELECT MAX(date) FROM raw.gold_prices"
-        last_date = pd.read_sql(last_date_query, engine).iloc[0, 0]
-    except Exception:
-        last_date = None
+    # The table always exists (create_gold_table runs first), so a failing query is a real
+    # error and stops the task, instead of silently re-downloading 20 years on top.
+    last_date = pd.read_sql("SELECT MAX(date) FROM raw.gold_prices", engine).iloc[0, 0]
 
     # 2. Determine the start date
-    if last_date:
-        start_date = (last_date + timedelta(days=1)).strftime("%Y-%m-%d")
-    else:
-        start_date = (datetime.now() - timedelta(days=20 * 365)).strftime("%Y-%m-%d")
+    start_date = fetch_start(last_date, datetime.now()).strftime("%Y-%m-%d")
 
     # 3. Fetch data (Switching to GLD for better stability)
     # Using 'period' can sometimes be more reliable than 'start' for long histories
@@ -73,9 +70,9 @@ def scrape_market_data():
     # yfinance sometimes returns a multi-index header; we flatten it here
     df = data[["Close"]].reset_index()
 
-    # Ensure columns are simple strings
+    # Ensure columns are simple strings, then one row per month
     df.columns = ["date", "price"]
-    df["currency"] = "USD"
+    df = to_month_rows(df)
 
     # Save for the next task
     df.to_csv("/tmp/gold_data.csv", index=False)
@@ -90,13 +87,13 @@ def load_data_to_postgres():
     1. Check if the temporary CSV file exists and has content. If not, skip loading.
     2. Establish connection to PostgreSQL using Airflow connection.
     3. Read the cleaned data from /tmp/gold_data.csv into a pandas DataFrame.
-    4. Use SQLAlchemy engine to append the data to the 'raw.gold_prices' table.
+    4. Replace those months in 'raw.gold_prices' (delete from the first loaded month, then insert), in one transaction.
     5. Log the number of rows successfully loaded.
 
     Data Flow: CSV file -> pandas DataFrame -> PostgreSQL table 'raw.gold_prices'
     """
     from airflow.hooks.base import BaseHook
-    from sqlalchemy import create_engine
+    from sqlalchemy import create_engine, text
 
     # Check if the file has data (not just an empty file)
     if (
@@ -111,12 +108,18 @@ def load_data_to_postgres():
     port = conn.port if conn.port else 5432
     connection_string = f"postgresql+psycopg2://{conn.login}:{conn.password}@{host}:{port}/{conn.schema}"
 
-    df = pd.read_csv("/tmp/gold_data.csv")
+    df = pd.read_csv("/tmp/gold_data.csv", parse_dates=["date"])
     engine = create_engine(connection_string)
 
-    # Append new data to the existing table
-    df.to_sql("gold_prices", engine, schema="raw", if_exists="append", index=False)
-    print(f"Successfully loaded {len(df)} rows to raw.gold_prices")
+    # Replace the downloaded months instead of appending them, in one transaction:
+    # re-runs and the unfinished current month then never create duplicate rows.
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM raw.gold_prices WHERE date >= :first_month"),
+            {"first_month": df["date"].min().to_pydatetime()},
+        )
+        df.to_sql("gold_prices", connection, schema="raw", if_exists="append", index=False)
+    print(f"Successfully loaded {len(df)} months to raw.gold_prices (from {df['date'].min():%Y-%m})")
 
 
 with DAG(
