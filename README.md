@@ -174,4 +174,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## Author
 
-[AAliasghar](https://github.com/AAliasghar) · [Open an issue](https://github.com/AAliasghar/ir-housing-gold-fx-model/issues)
+Aliasghar Asgharinia ([@AAliasghar](https://github.com/AAliasghar)) · [Open an issue](https://github.com/AAliasghar/ir-housing-gold-fx-model/issues)
