@@ -14,7 +14,7 @@ Apache Airflow pipelines that collect **Iranian** macro and market data (USD/IRR
 | DAG | Data | Source | Table | Schedule |
 |---|---|---|---|---|
 | `fx_currency_scraper` | USD/IRR rate | Yahoo Finance `USDIRR=X` for 2006–2010; [rial-exchange-rates-archive](https://github.com/SamadiPour/rial-exchange-rates-archive) (open-market sell rate, toman → rial) for the years it covers, about 2012 onward | `raw.fx_rates` | daily, incremental |
-| `market_data_scraper` | Gold: GLD ETF monthly close, USD | Yahoo Finance | `raw.gold_prices` | daily, incremental (first run loads 20 years) |
+| `market_data_scraper` | Gold: GLD ETF monthly close, USD, one row per month dated the 1st | Yahoo Finance | `raw.gold_prices` | daily, incremental (first run loads 20 years; each run replaces the latest month) |
 | `inflation_ingestion` | Consumer-price inflation, annual % (`FP.CPI.TOTL.ZG`) | World Bank API, country `IRN` | `raw.inflation_rates` | monthly, full refresh |
 | `gdp_ingestion` | GDP growth % and GDP in current USD | World Bank API, country `IRN` | `raw.gdp_data` | monthly, full refresh |
 | `housing_ingestion_pipeline` | Average Tehran housing price (toman per m²) and USD rate for selected years | [`data/tehran_housing_seeds.csv`](data/tehran_housing_seeds.csv) | `raw.housing_historical_raw` | once |
@@ -83,6 +83,8 @@ docker compose up --build -d
 ```
 
 On the first start, `airflow-init` prepares the Airflow tables and creates the UI login, then the webserver and scheduler start.
+
+**Tested end to end** on 2026-11-02 in Docker: all five DAGs succeeded and loaded 6,396 USD/IRR rates, 240 months of gold prices, 66 World Bank inflation and GDP rows, and the 11-row housing seed. Running the gold DAG again replaced only the current month (no duplicates).
 
 - **Airflow UI:** http://localhost:8081, log in with `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` from `.env` (default `admin` / `admin`)
 - **PostgreSQL:** `localhost:5433`, database `ir_market_data`, user and password from `.env`
